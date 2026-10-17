@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 
-// Vercel Edge/Serverless کے لیے Web Worker کو ڈس ایبل کرنا ضروری ہے
+// Vercel کے لیے Web Worker کو بند کرنا ضروری ہے
 pdfjsLib.GlobalWorkerOptions.workerSrc = false;
 
 export async function POST(req) {
@@ -29,7 +29,6 @@ export async function POST(req) {
       fullText += pageText + ' \n';
     }
 
-    // ٹیکسٹ کو صاف کرنا (فالتو اسپیسز ہٹانا)
     const cleanText = fullText.replace(/\s+/g, ' ').trim();
 
     return NextResponse.json({ text: cleanText });
