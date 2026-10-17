@@ -26,6 +26,9 @@ export default function App() {
   const [systemSettings, setSystemSettings] = useState({
     emails_enabled: 'true', max_jobs_per_user: '5', job_search_hours: '24'
   })
+  
+  // نیا اسٹیٹ: ایڈمن کے لیے مخصوص یوزر کی نوکریاں دیکھنے کے لیے
+  const [selectedUserJobs, setSelectedUserJobs] = useState(null)
 
   useEffect(() => {
     const link = document.createElement('link')
@@ -135,6 +138,26 @@ export default function App() {
     setLoading(false)
   }
 
+  // نیا فنکشن: ایڈمن کسی بھی یوزر کی نوکریاں دیکھ سکے گا
+  const viewUserJobs = async (userId, userName) => {
+    setLoading(true)
+    const { data } = await supabase.from('job_matches').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+    setSelectedUserJobs({ userId, userName, jobs: data || [] })
+    setLoading(false)
+  }
+
+  // نیا فنکشن: ایڈمن یوزر کے ڈیش بورڈ سے نوکری ڈیلیٹ کر سکتا ہے
+  const deleteUserJob = async (jobId) => {
+    const confirmDelete = window.confirm("کیا آپ واقعی اس نوکری کو یوزر کے ڈیش بورڈ سے ہٹانا چاہتے ہیں؟")
+    if (!confirmDelete) return
+
+    const { error } = await supabase.from('job_matches').delete().eq('id', jobId)
+    if (!error) {
+      setSelectedUserJobs(prev => ({ ...prev, jobs: prev.jobs.filter(j => j.id !== jobId) }))
+      showPopup('نوکری یوزر کے ڈیش بورڈ سے ہٹا دی گئی!', 'success')
+    }
+  }
+
   const updateProfile = async () => {
     setLoading(true)
     const { error } = await supabase.from('profiles').upsert({
@@ -192,7 +215,6 @@ export default function App() {
     fileReader.readAsArrayBuffer(file)
   }
 
-  // نیا AI Auto Fill فنکشن
   const handleAutoFill = async () => {
     if (!cvText || cvText.length < 20) {
       showPopup('پہلے سی وی اپلوڈ کریں یا متن پیسٹ کریں!', 'error')
@@ -239,6 +261,15 @@ export default function App() {
     if (jobTab === 'saved') return job.is_saved
     if (jobTab === 'applied') return job.is_applied
     return true
+  })
+
+  // نوکریوں کو تاریخ کے لحاظ سے گروپ (Group) کرنے کا لاجک
+  const groupedJobs = {}
+  displayedJobs.forEach(job => {
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+    const date = new Date(job.created_at).toLocaleDateString('en-US', dateOptions)
+    if (!groupedJobs[date]) groupedJobs[date] = []
+    groupedJobs[date].push(job)
   })
 
   const Toast = () => (
@@ -328,7 +359,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-6 py-8 relative z-10">
         
         {showAdminPanel && userRole === 'admin' && (
-          <div className="mb-8 p-6 bg-[#130F21] border border-violet-500/30 rounded-2xl shadow-[0_0_30px_rgba(139,92,246,0.1)]">
+          <div className="mb-8 p-6 bg-[#130F21] border border-violet-500/30 rounded-2xl shadow-[0_0_30px_rgba(139,92,246,0.1)] relative">
             <div className="flex gap-6 mb-6 border-b border-white/10 pb-4">
               <button onClick={() => setAdminTab('settings')} className={`font-bold text-lg transition-colors ${adminTab === 'settings' ? 'text-violet-400' : 'text-gray-500 hover:text-gray-300'}`}>System Settings</button>
               <button onClick={() => { setAdminTab('users'); fetchAllUsers(); }} className={`font-bold text-lg transition-colors ${adminTab === 'users' ? 'text-violet-400' : 'text-gray-500 hover:text-gray-300'}`}>User Management</button>
@@ -347,6 +378,15 @@ export default function App() {
                   <div>
                     <label className="block text-sm text-gray-400 mb-1">Max Jobs Per User/Day</label>
                     <input type="number" value={systemSettings.max_jobs_per_user} onChange={(e) => setSystemSettings({...systemSettings, max_jobs_per_user: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none" />
+                  </div>
+                  {/* Search Range آپشن واپس آ گیا ہے */}
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Search Range (Hours)</label>
+                    <select value={systemSettings.job_search_hours} onChange={(e) => setSystemSettings({...systemSettings, job_search_hours: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none">
+                      <option value="24">Last 24 Hours</option>
+                      <option value="72">Last 3 Days</option>
+                      <option value="168">Last Week</option>
+                    </select>
                   </div>
                 </div>
                 <button onClick={saveAdminSettings} disabled={loading} className="mt-6 px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-xl transition-all">Save System Settings</button>
@@ -374,12 +414,16 @@ export default function App() {
                             {u.role}
                           </span>
                         </td>
-                        <td className="p-4">
+                        <td className="p-4 flex gap-2">
                           {u.id !== session.user.id && (
-                            <button onClick={() => toggleUserRole(u.id, u.role)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${u.role === 'admin' ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30'}`}>
-                              {u.role === 'admin' ? 'Demote to User' : 'Make Admin'}
+                            <button onClick={() => toggleUserRole(u.id, u.role)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${u.role === 'admin' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'}`}>
+                              {u.role === 'admin' ? 'Demote' : 'Make Admin'}
                             </button>
                           )}
+                          {/* یوزر کی نوکریاں دیکھنے کا بٹن */}
+                          <button onClick={() => viewUserJobs(u.id, u.full_name || u.email)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-500/10 text-violet-400 border border-violet-500/30 hover:bg-violet-500/20 transition-all">
+                            View Jobs
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -387,6 +431,38 @@ export default function App() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* یوزر کی نوکریاں دیکھنے والا پاپ اپ (Modal) */}
+        {selectedUserJobs && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <div className="w-full max-w-3xl bg-[#130F21] border border-violet-500/30 rounded-3xl p-8 relative max-h-[85vh] overflow-y-auto shadow-2xl">
+              <button onClick={() => setSelectedUserJobs(null)} className="absolute top-6 right-6 text-gray-400 hover:text-white bg-white/5 p-2 rounded-full">✕</button>
+              <h2 className="text-2xl font-bold text-white mb-6">Jobs Sent To: <span className="text-violet-400">{selectedUserJobs.userName}</span></h2>
+              
+              <div className="space-y-4">
+                {selectedUserJobs.jobs.length === 0 ? (
+                  <p className="text-gray-400 text-center py-10">اس یوزر کو ابھی تک کوئی نوکری نہیں بھیجی گئی۔</p>
+                ) : (
+                  selectedUserJobs.jobs.map(j => (
+                    <div key={j.id} className="bg-[#0B0813] p-5 rounded-2xl border border-white/10 flex justify-between items-center gap-4">
+                      <div>
+                        <h4 className="text-white font-bold text-lg mb-1">{j.job_title}</h4>
+                        <p className="text-gray-400 text-sm">{j.company} • {j.job_location}</p>
+                        <p className="text-xs text-violet-400 mt-2 font-medium">Sent on: {new Date(j.created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <span className="bg-white/5 px-3 py-1 rounded text-xs text-gray-300 text-center border border-white/10">{j.match_score}% Match</span>
+                        <button onClick={() => deleteUserJob(j.id)} className="bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border border-rose-500/20">
+                          Delete Job
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -424,7 +500,6 @@ export default function App() {
                   <label className="block text-sm font-semibold text-gray-400 mb-2">Paste CV Text (سی وی کا متن)</label>
                   <textarea rows="4" value={cvText} onChange={(e) => setCvText(e.target.value)} className="w-full p-4 bg-[#0B0813] border border-white/10 rounded-xl focus:border-violet-500 text-white outline-none text-sm" placeholder="Paste your complete CV text here..."></textarea>
                   
-                  {/* نیا AI Auto Fill بٹن */}
                   {cvText && (
                     <button onClick={handleAutoFill} disabled={loading} className="mt-3 w-full py-2.5 bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600/30 border border-fuchsia-500/30 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
                       <span>🪄</span> AI Auto Fill (نام اور فیلڈ خودکار بھریں)
@@ -448,7 +523,7 @@ export default function App() {
             </div>
 
             <div className="space-y-4">
-              {displayedJobs.length === 0 ? (
+              {Object.keys(groupedJobs).length === 0 ? (
                 <div className="bg-[#130F21]/80 border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center">
                   <span className="text-4xl mb-4 opacity-50">🤖</span>
                   <p className="text-gray-400 max-w-sm" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>
@@ -456,39 +531,53 @@ export default function App() {
                   </p>
                 </div>
               ) : (
-                displayedJobs.map((job) => (
-                  <div key={job.id} className={`bg-[#130F21]/80 p-6 rounded-2xl border ${job.is_saved ? 'border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]' : 'border-white/10'} hover:border-violet-500/50 transition-all group relative backdrop-blur-xl`}>
-                    <div className="absolute top-6 right-6 flex gap-2">
-                      {job.is_applied && <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded text-xs font-bold">Applied</span>}
-                      <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 px-3 py-1 rounded-md text-sm font-bold">
-                        {job.match_score}% Match
+                // نوکریاں اب تاریخ کے لحاظ سے گروپ ہو کر نظر آئیں گی
+                Object.keys(groupedJobs).map((dateStr) => (
+                  <div key={dateStr} className="mb-10">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="h-px bg-white/10 flex-1"></div>
+                      <span className="text-sm font-bold text-gray-400 bg-[#0B0813] px-5 py-1.5 rounded-full border border-white/5">
+                        {dateStr}
                       </span>
+                      <div className="h-px bg-white/10 flex-1"></div>
                     </div>
-                    <h3 className="text-xl font-bold text-white pr-32 mb-2 group-hover:text-violet-400 transition-colors">{job.job_title}</h3>
-                    <div className="flex items-center gap-4 text-sm text-gray-400 font-medium mb-5">
-                      <span>🏢 {job.company}</span>
-                      <span>📍 {job.job_location}</span>
-                      <span className="text-xs text-gray-500">{new Date(job.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <div className="bg-[#0B0813] p-4 rounded-xl border border-white/5 mb-5">
-                      <h4 className="text-xs font-bold text-violet-400 tracking-wider mb-2">AI ANALYSIS</h4>
-                      <p className="text-sm text-gray-300 leading-relaxed" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif", direction: 'rtl' }}>{job.match_reason}</p>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-white/5">
-                      <div className="flex gap-2">
-                        <button onClick={() => handleJobAction(job.id, 'save')} className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${job.is_saved ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'}`}>
-                          {job.is_saved ? '❤️ Saved' : '🤍 Save'}
-                        </button>
-                        <button onClick={() => handleJobAction(job.id, 'apply')} className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${job.is_applied ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'}`}>
-                          {job.is_applied ? 'Applied ✔' : 'Mark Applied'}
-                        </button>
-                        <button onClick={() => handleJobAction(job.id, 'hide')} className="px-3 py-2 rounded-lg text-sm border border-white/10 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
-                          Hide
-                        </button>
-                      </div>
-                      <a href={job.job_url} target="_blank" rel="noreferrer" className="px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold text-sm transition-all shadow-[0_0_10px_rgba(139,92,246,0.3)]">
-                        Apply Now ↗
-                      </a>
+                    
+                    <div className="space-y-4">
+                      {groupedJobs[dateStr].map((job) => (
+                        <div key={job.id} className={`bg-[#130F21]/80 p-6 rounded-2xl border ${job.is_saved ? 'border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.15)]' : 'border-white/10'} hover:border-violet-500/50 transition-all group relative backdrop-blur-xl`}>
+                          <div className="absolute top-6 right-6 flex gap-2">
+                            {job.is_applied && <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded text-xs font-bold">Applied</span>}
+                            <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 px-3 py-1 rounded-md text-sm font-bold">
+                              {job.match_score}% Match
+                            </span>
+                          </div>
+                          <h3 className="text-xl font-bold text-white pr-32 mb-2 group-hover:text-violet-400 transition-colors">{job.job_title}</h3>
+                          <div className="flex items-center gap-4 text-sm text-gray-400 font-medium mb-5">
+                            <span>🏢 {job.company}</span>
+                            <span>📍 {job.job_location}</span>
+                          </div>
+                          <div className="bg-[#0B0813] p-4 rounded-xl border border-white/5 mb-5">
+                            <h4 className="text-xs font-bold text-violet-400 tracking-wider mb-2">AI ANALYSIS</h4>
+                            <p className="text-sm text-gray-300 leading-relaxed" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif", direction: 'rtl' }}>{job.match_reason}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-white/5">
+                            <div className="flex gap-2">
+                              <button onClick={() => handleJobAction(job.id, 'save')} className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${job.is_saved ? 'bg-fuchsia-600 text-white border-fuchsia-500' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'}`}>
+                                {job.is_saved ? '❤️ Saved' : '🤍 Save'}
+                              </button>
+                              <button onClick={() => handleJobAction(job.id, 'apply')} className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${job.is_applied ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'}`}>
+                                {job.is_applied ? 'Applied ✔' : 'Mark Applied'}
+                              </button>
+                              <button onClick={() => handleJobAction(job.id, 'hide')} className="px-3 py-2 rounded-lg text-sm border border-white/10 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
+                                Hide
+                              </button>
+                            </div>
+                            <a href={job.job_url} target="_blank" rel="noreferrer" className="px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold text-sm transition-all shadow-[0_0_10px_rgba(139,92,246,0.3)]">
+                              Apply Now ↗
+                            </a>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))
