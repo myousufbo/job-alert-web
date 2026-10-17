@@ -13,17 +13,20 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    return new Promise((resolve, reject) => {
-      const pdfParser = new PDFParser(this, 1); // 1 = صرف ٹیکسٹ نکالنے کے لیے
+    return new Promise((resolve) => {
+      // یہاں 'this' کی جگہ 'null' کا استعمال کیا گیا ہے جو Next.js کے لیے ضروری ہے
+      const pdfParser = new PDFParser(null, 1);
 
       pdfParser.on("pdfParser_dataError", errData => {
         console.error("❌ PDF پارسنگ ایرر:", errData.parserError);
         resolve(NextResponse.json({ error: "پی ڈی ایف پڑھنے میں خرابی" }, { status: 500 }));
       });
 
-      pdfParser.on("pdfParser_dataReady", pdfData => {
+      pdfParser.on("pdfParser_dataReady", () => {
         const rawText = pdfParser.getRawTextContent();
-        resolve(NextResponse.json({ text: rawText }));
+        // ٹیکسٹ کو کلین (Clean) کر کے واپس بھیجنا
+        const cleanText = rawText.replace(/\r\n/g, " ").replace(/\n/g, " ");
+        resolve(NextResponse.json({ text: cleanText }));
       });
 
       pdfParser.parseBuffer(buffer);
