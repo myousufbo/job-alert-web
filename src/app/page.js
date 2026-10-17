@@ -23,17 +23,26 @@ export default function App() {
 
   // ایڈمن اسٹیٹس
   const [showAdminPanel, setShowAdminPanel] = useState(false)
-  const [adminTab, setAdminTab] = useState('settings') // 'settings' or 'users'
+  const [adminTab, setAdminTab] = useState('settings')
   const [allUsers, setAllUsers] = useState([])
   const [systemSettings, setSystemSettings] = useState({
     emails_enabled: 'true', max_jobs_per_user: '5', job_search_hours: '24'
   })
 
   useEffect(() => {
+    // اردو فونٹ لوڈ کرنا
     const link = document.createElement('link')
     link.href = 'https://fonts.googleapis.com/earlyaccess/notonastaliqurdudraft.css'
     link.rel = 'stylesheet'
     document.head.appendChild(link)
+
+    // PDF.js (براؤزر میں مفت پی ڈی ایف پڑھنے کے لیے)
+    if (!document.getElementById('pdfjs-script')) {
+      const script = document.createElement('script')
+      script.id = 'pdfjs-script'
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+      document.head.appendChild(script)
+    }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -107,7 +116,7 @@ export default function App() {
 
   const fetchAllUsers = async () => {
     setLoading(true)
-    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
     if (data) setAllUsers(data)
     setLoading(false)
   }
@@ -118,9 +127,7 @@ export default function App() {
     if (!error) {
       showPopup('یوزر کا درجہ تبدیل کر دیا گیا ہے!', 'success')
       fetchAllUsers()
-    } else {
-      showPopup(error.message, 'error')
-    }
+    } else showPopup(error.message, 'error')
   }
 
   const saveAdminSettings = async () => {
@@ -142,37 +149,54 @@ export default function App() {
     setLoading(false)
   }
 
+  // نیا 100% فری فرنٹ اینڈ PDF ریڈر فنکشن
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    
-    // چیک کریں کہ فائل PDF ہے یا نہیں
+
     if (file.type !== 'application/pdf') {
       showPopup('براہ کرم صرف PDF فائل اپلوڈ کریں۔', 'error')
       return
     }
 
-    showPopup(`فائل ${file.name} پڑھی جا رہی ہے... براہ کرم انتظار کریں`, 'success')
+    showPopup(`فائل ${file.name} پڑھی جا رہی ہے...`, 'success')
     setLoading(true)
 
-    const formData = new FormData()
-    formData.append('file', file)
+    const fileReader = new FileReader()
+    fileReader.onload = async function() {
+      try {
+        if (!window.pdfjsLib) {
+          showPopup('سسٹم لوڈ ہو رہا ہے، چند سیکنڈ بعد دوبارہ کوشش کریں۔', 'error')
+          setLoading(false)
+          return
+        }
 
-    try {
-      // ہماری نئی API کو فائل بھیجیں
-      const res = await fetch('/api/extract', { method: 'POST', body: formData })
-      const data = await res.json()
-      
-      if (data.text) {
-        setCvText(data.text) // ٹیکسٹ نکال کر خودکار طور پر باکس میں ڈال دے گا
-        showPopup('CV کا ٹیکسٹ کامیابی سے نکال لیا گیا ہے! اب "Save Profile" دبائیں۔', 'success')
-      } else {
-        showPopup('فائل سے ٹیکسٹ نہیں نکالا جا سکا۔', 'error')
+        // براؤزر میں پی ڈی ایف پروسیسنگ
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+        const typedarray = new Uint8Array(this.result)
+        const pdf = await window.pdfjsLib.getDocument(typedarray).promise
+        
+        let fullText = ''
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i)
+          const textContent = await page.getTextContent()
+          const pageText = textContent.items.map(item => item.str).join(' ')
+          fullText += pageText + ' \n'
+        }
+
+        if (fullText.trim()) {
+          setCvText(fullText.replace(/\s+/g, ' ').trim())
+          showPopup('CV کا ٹیکسٹ نکال لیا گیا ہے! اب "Save Profile" دبائیں۔', 'success')
+        } else {
+          showPopup('یہ ایک تصویری پی ڈی ایف ہے، اس میں سے ٹیکسٹ نہیں نکالا جا سکا۔', 'error')
+        }
+      } catch (err) {
+        showPopup('فائل پڑھنے میں مسئلہ آیا۔', 'error')
       }
-    } catch (err) {
-      showPopup('فائل اپلوڈ کرنے میں مسئلہ آ رہا ہے۔', 'error')
+      setLoading(false)
+      e.target.value = '' // اپلوڈ بٹن کو ری سیٹ کرنا
     }
-    setLoading(false)
+    fileReader.readAsArrayBuffer(file)
   }
 
   const handleJobAction = async (jobId, action) => {
@@ -186,9 +210,7 @@ export default function App() {
     if (!error) showPopup(action === 'hide' ? 'نوکری ہٹا دی گئی' : 'تبدیلی محفوظ ہو گئی', 'success')
   }
 
-  const scrollToSection = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 
   const displayedJobs = jobMatches.filter(job => {
     if (jobTab === 'saved') return job.is_saved
@@ -204,9 +226,6 @@ export default function App() {
     </div>
   )
 
-  // ==========================================
-  // 1. SPA لینڈنگ پیج (Landing Page)
-  // ==========================================
   if (!session) {
     return (
       <div suppressHydrationWarning className="min-h-screen bg-[#0B0813] text-white font-sans overflow-x-hidden relative selection:bg-violet-500/30 scroll-smooth">
@@ -240,7 +259,6 @@ export default function App() {
           </div>
         </nav>
 
-        {/* Hero Section */}
         <main className="relative z-10 pt-40 pb-20 px-6 max-w-7xl mx-auto flex flex-col items-center text-center">
           <div className="px-4 py-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 text-xs font-bold tracking-widest mb-8 flex items-center gap-2">
             <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span></span>
@@ -371,9 +389,6 @@ export default function App() {
     )
   }
 
-  // ==========================================
-  // 2. ڈیش بورڈ پیج
-  // ==========================================
   return (
     <div suppressHydrationWarning className="min-h-screen bg-[#0B0813] font-sans text-gray-200 relative selection:bg-violet-500/30">
       <Toast />
@@ -501,7 +516,7 @@ export default function App() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-400 mb-2">Upload CV File (فائل اپلوڈ کریں)</label>
-                  <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileUpload} className="w-full p-2 bg-[#0B0813] border border-white/10 rounded-xl text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-500/20 file:text-violet-400 hover:file:bg-violet-500/30 transition-all cursor-pointer" />
+                  <input type="file" accept=".pdf" onChange={handleFileUpload} className="w-full p-2 bg-[#0B0813] border border-white/10 rounded-xl text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-500/20 file:text-violet-400 hover:file:bg-violet-500/30 transition-all cursor-pointer" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-400 mb-2">Paste CV Text (سی وی کا متن)</label>
