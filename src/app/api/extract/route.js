@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+
+// Vercel Edge/Serverless کے لیے Web Worker کو ڈس ایبل کرنا ضروری ہے
+pdfjsLib.GlobalWorkerOptions.workerSrc = false;
 
 export async function POST(req) {
   try {
@@ -10,16 +14,28 @@ export async function POST(req) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Dynamic Import to bypass Turbopack build errors
-    const pdf = (await import('pdf-parse-new')).default;
     
-    const data = await pdf(buffer);
+    // PDF کو لوڈ کرنا
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdfDocument = await loadingTask.promise;
+    
+    let fullText = '';
 
-    return NextResponse.json({ text: data.text });
+    // ہر پیج سے باری باری ٹیکسٹ نکالنا
+    for (let i = 1; i <= pdfDocument.numPages; i++) {
+      const page = await pdfDocument.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      fullText += pageText + ' \n';
+    }
+
+    // ٹیکسٹ کو صاف کرنا (فالتو اسپیسز ہٹانا)
+    const cleanText = fullText.replace(/\s+/g, ' ').trim();
+
+    return NextResponse.json({ text: cleanText });
+
   } catch (error) {
-    console.error("❌ سرور ایرر:", error.message);
+    console.error("❌ PDF Extraction Error:", error);
     return NextResponse.json({ error: "فائل سے ٹیکسٹ نہیں نکالا جا سکا۔" }, { status: 500 });
   }
 }
