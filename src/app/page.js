@@ -145,8 +145,34 @@ export default function App() {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    // فائل اپلوڈ کا کلاؤڈ لاجک یہاں آئے گا
-    showPopup(`فائل ${file.name} منتخب ہو گئی۔ سسٹم اسے پراسیس کرے گا۔`, 'success')
+    
+    // چیک کریں کہ فائل PDF ہے یا نہیں
+    if (file.type !== 'application/pdf') {
+      showPopup('براہ کرم صرف PDF فائل اپلوڈ کریں۔', 'error')
+      return
+    }
+
+    showPopup(`فائل ${file.name} پڑھی جا رہی ہے... براہ کرم انتظار کریں`, 'success')
+    setLoading(true)
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      // ہماری نئی API کو فائل بھیجیں
+      const res = await fetch('/api/extract', { method: 'POST', body: formData })
+      const data = await res.json()
+      
+      if (data.text) {
+        setCvText(data.text) // ٹیکسٹ نکال کر خودکار طور پر باکس میں ڈال دے گا
+        showPopup('CV کا ٹیکسٹ کامیابی سے نکال لیا گیا ہے! اب "Save Profile" دبائیں۔', 'success')
+      } else {
+        showPopup('فائل سے ٹیکسٹ نہیں نکالا جا سکا۔', 'error')
+      }
+    } catch (err) {
+      showPopup('فائل اپلوڈ کرنے میں مسئلہ آ رہا ہے۔', 'error')
+    }
+    setLoading(false)
   }
 
   const handleJobAction = async (jobId, action) => {
