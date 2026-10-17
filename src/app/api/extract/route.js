@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import PDFParser from 'pdf2json';
 
 export async function POST(req) {
   try {
@@ -12,13 +13,22 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Next.js Turbopack Bypass: ڈائنیمک امپورٹ کا استعمال
-    const pdfModule = await import('pdf-parse');
-    const pdf = pdfModule.default || pdfModule;
-    
-    const data = await pdf(buffer);
+    return new Promise((resolve, reject) => {
+      const pdfParser = new PDFParser(this, 1); // 1 = صرف ٹیکسٹ نکالنے کے لیے
 
-    return NextResponse.json({ text: data.text });
+      pdfParser.on("pdfParser_dataError", errData => {
+        console.error("❌ PDF پارسنگ ایرر:", errData.parserError);
+        resolve(NextResponse.json({ error: "پی ڈی ایف پڑھنے میں خرابی" }, { status: 500 }));
+      });
+
+      pdfParser.on("pdfParser_dataReady", pdfData => {
+        const rawText = pdfParser.getRawTextContent();
+        resolve(NextResponse.json({ text: rawText }));
+      });
+
+      pdfParser.parseBuffer(buffer);
+    });
+
   } catch (error) {
     console.error("❌ سرور ایرر:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
