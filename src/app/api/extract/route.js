@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import PDFParser from 'pdf2json';
 
 export async function POST(req) {
   try {
@@ -13,8 +12,10 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // Dynamic Import کا استعمال تاکہ Turbopack کو مسئلہ نہ ہو
+    const PDFParser = (await import('pdf2json')).default;
+    
     return new Promise((resolve) => {
-      // یہاں 'this' کی جگہ 'null' کا استعمال کیا گیا ہے جو Next.js کے لیے ضروری ہے
       const pdfParser = new PDFParser(null, 1);
 
       pdfParser.on("pdfParser_dataError", errData => {
@@ -24,7 +25,6 @@ export async function POST(req) {
 
       pdfParser.on("pdfParser_dataReady", () => {
         const rawText = pdfParser.getRawTextContent();
-        // ٹیکسٹ کو کلین (Clean) کر کے واپس بھیجنا
         const cleanText = rawText.replace(/\r\n/g, " ").replace(/\n/g, " ");
         resolve(NextResponse.json({ text: cleanText }));
       });
