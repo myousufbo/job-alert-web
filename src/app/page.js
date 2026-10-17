@@ -11,7 +11,6 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [popup, setPopup] = useState({ show: false, message: '', type: '' })
 
-  // پروفائل اسٹیٹس
   const [userRole, setUserRole] = useState('user')
   const [fullName, setFullName] = useState('')
   const [jobCategory, setJobCategory] = useState('')
@@ -21,7 +20,6 @@ export default function App() {
   const [jobMatches, setJobMatches] = useState([])
   const [jobTab, setJobTab] = useState('all')
 
-  // ایڈمن اسٹیٹس
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [adminTab, setAdminTab] = useState('settings')
   const [allUsers, setAllUsers] = useState([])
@@ -30,13 +28,11 @@ export default function App() {
   })
 
   useEffect(() => {
-    // اردو فونٹ لوڈ کرنا
     const link = document.createElement('link')
     link.href = 'https://fonts.googleapis.com/earlyaccess/notonastaliqurdudraft.css'
     link.rel = 'stylesheet'
     document.head.appendChild(link)
 
-    // PDF.js (براؤزر میں مفت پی ڈی ایف پڑھنے کے لیے)
     if (!document.getElementById('pdfjs-script')) {
       const script = document.createElement('script')
       script.id = 'pdfjs-script'
@@ -149,7 +145,6 @@ export default function App() {
     setLoading(false)
   }
 
-  // نیا 100% فری فرنٹ اینڈ PDF ریڈر فنکشن
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -170,8 +165,6 @@ export default function App() {
           setLoading(false)
           return
         }
-
-        // براؤزر میں پی ڈی ایف پروسیسنگ
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
         const typedarray = new Uint8Array(this.result)
         const pdf = await window.pdfjsLib.getDocument(typedarray).promise
@@ -186,7 +179,7 @@ export default function App() {
 
         if (fullText.trim()) {
           setCvText(fullText.replace(/\s+/g, ' ').trim())
-          showPopup('CV کا ٹیکسٹ نکال لیا گیا ہے! اب "Save Profile" دبائیں۔', 'success')
+          showPopup('CV کا ٹیکسٹ نکال لیا گیا ہے! اب "AI Auto Fill" دبا کر فیلڈز بھریں۔', 'success')
         } else {
           showPopup('یہ ایک تصویری پی ڈی ایف ہے، اس میں سے ٹیکسٹ نہیں نکالا جا سکا۔', 'error')
         }
@@ -194,9 +187,39 @@ export default function App() {
         showPopup('فائل پڑھنے میں مسئلہ آیا۔', 'error')
       }
       setLoading(false)
-      e.target.value = '' // اپلوڈ بٹن کو ری سیٹ کرنا
+      e.target.value = ''
     }
     fileReader.readAsArrayBuffer(file)
+  }
+
+  // نیا AI Auto Fill فنکشن
+  const handleAutoFill = async () => {
+    if (!cvText || cvText.length < 20) {
+      showPopup('پہلے سی وی اپلوڈ کریں یا متن پیسٹ کریں!', 'error')
+      return
+    }
+    setLoading(true)
+    showPopup('🪄 جیمنائی (Gemini) اے آئی ڈیٹا نکال رہا ہے...', 'success')
+
+    try {
+      const res = await fetch('/api/parse-cv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: cvText })
+      })
+      const data = await res.json()
+
+      if (data.error) throw new Error(data.error)
+
+      if (data.full_name) setFullName(data.full_name)
+      if (data.target_job) setJobCategory(data.target_job)
+      if (data.location) setLocation(data.location)
+
+      showPopup('جادو! اے آئی نے فیلڈز خودکار بھر دی ہیں۔ اب Save دبائیں۔', 'success')
+    } catch (err) {
+      showPopup(err.message || 'آٹو فل میں مسئلہ آیا۔', 'error')
+    }
+    setLoading(false)
   }
 
   const handleJobAction = async (jobId, action) => {
@@ -232,8 +255,6 @@ export default function App() {
         <Toast />
         <div className="fixed inset-0 z-0 pointer-events-none">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:32px_32px]"></div>
-          <div className="absolute top-0 left-[20%] w-[600px] h-[600px] bg-violet-600/20 rounded-full blur-[120px] mix-blend-screen"></div>
-          <div className="absolute bottom-0 right-[10%] w-[500px] h-[500px] bg-fuchsia-600/10 rounded-full blur-[100px] mix-blend-screen"></div>
         </div>
 
         <nav className="fixed top-0 w-full z-50 bg-[#0B0813]/80 backdrop-blur-xl border-b border-white/10">
@@ -244,14 +265,6 @@ export default function App() {
               </div>
               <span className="text-xl font-bold text-white">Job<span className="text-violet-400">Alert</span> AI</span>
             </div>
-            
-            <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
-              <button onClick={() => scrollToSection('features')} className="hover:text-white transition-colors">Features</button>
-              <button onClick={() => scrollToSection('how-it-works')} className="hover:text-white transition-colors">How it Works</button>
-              <button onClick={() => scrollToSection('projects')} className="hover:text-white transition-colors">Projects</button>
-              <button onClick={() => scrollToSection('contact')} className="hover:text-white transition-colors">Contact</button>
-            </div>
-
             <div className="flex items-center gap-4">
               <button onClick={() => { setShowAuth(true); setAuthMode('login'); }} className="text-sm font-semibold text-gray-300 hover:text-white transition-colors">Sign In</button>
               <button onClick={() => { setShowAuth(true); setAuthMode('signup'); }} className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold rounded-full transition-all">Get Started</button>
@@ -260,112 +273,9 @@ export default function App() {
         </nav>
 
         <main className="relative z-10 pt-40 pb-20 px-6 max-w-7xl mx-auto flex flex-col items-center text-center">
-          <div className="px-4 py-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 text-xs font-bold tracking-widest mb-8 flex items-center gap-2">
-            <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span></span>
-            AI-POWERED JOB MATCHING
-          </div>
           <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-6">Find Your Dream Job.<br /><span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-purple-400 bg-clip-text text-transparent italic">Effortlessly.</span></h1>
-          <p className="max-w-2xl text-lg text-gray-400 mb-10 leading-relaxed" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>
-            ہماری آرٹیفیشل انٹیلی جنس آپ کی سی وی کا گہرائی سے تجزیہ کر کے آپ کے لیے بہترین نوکریاں تلاش کرتی ہے۔
-          </p>
           <button onClick={() => { setShowAuth(true); setAuthMode('signup'); }} className="px-8 py-4 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-full transition-all shadow-[0_0_30px_rgba(139,92,246,0.4)]">Join Free Now →</button>
         </main>
-
-        <section id="features" className="py-24 relative z-10 border-t border-white/5 bg-gradient-to-b from-[#130F21]/30 to-transparent">
-          <div className="max-w-7xl mx-auto px-6">
-            <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-white" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>ہمارا سسٹم کیسے <span className="text-violet-400">منفرد</span> ہے؟</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                { title: 'AI Matching', desc: 'جیمنائی (Gemini) اے آئی آپ کی سی وی اور نوکری کی شرائط کا 100 فیصد باریک بینی سے موازنہ کرتا ہے۔', icon: '🧠' },
-                { title: 'Urdu Language', desc: 'نوکری کیوں آپ کے لیے موزوں ہے؟ اس کا مکمل تجزیہ آپ کو اپنی مادری زبان (اردو) میں ملتا ہے۔', icon: '📝' },
-                { title: 'Auto Alerts', desc: 'سسٹم ہر 24 گھنٹے بعد خودکار طریقے سے نئی نوکریاں تلاش کر کے آپ کو ای میل الرٹ بھیجتا ہے۔', icon: '⚡' }
-              ].map((feat, i) => (
-                <div key={i} className="bg-[#130F21]/80 backdrop-blur-md border border-white/10 p-8 rounded-3xl hover:border-violet-500/50 transition-all text-center group">
-                  <div className="text-5xl mb-6 group-hover:scale-110 transition-transform">{feat.icon}</div>
-                  <h3 className="text-xl font-bold text-white mb-4">{feat.title}</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>{feat.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="how-it-works" className="py-24 relative z-10 bg-[#130F21]/50 border-t border-white/5">
-          <div className="max-w-7xl mx-auto px-6 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-16 text-white" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>طریقہ استعمال (How it Works)</h2>
-            <div className="flex flex-col md:flex-row justify-center items-center gap-8">
-              {[
-                { step: '1', text: 'اکاؤنٹ بنائیں اور لاگ ان کریں' },
-                { step: '2', text: 'اپنی فیلڈ بتائیں اور سی وی اپلوڈ کریں' },
-                { step: '3', text: 'ڈیش بورڈ پر بہترین نوکریاں حاصل کریں' }
-              ].map((item, i) => (
-                <div key={i} className="flex flex-col items-center max-w-xs">
-                  <div className="w-16 h-16 rounded-full bg-violet-600/20 border border-violet-500 text-violet-400 flex items-center justify-center text-2xl font-bold mb-6 shadow-[0_0_20px_rgba(139,92,246,0.2)]">
-                    {item.step}
-                  </div>
-                  <p className="text-gray-300 text-lg font-medium" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>{item.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="projects" className="py-24 relative z-10 border-t border-white/5">
-          <div className="max-w-7xl mx-auto px-6">
-            <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-white" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>دیگر <span className="text-fuchsia-400">پروجیکٹس</span></h2>
-            <div className="bg-gradient-to-br from-violet-900/20 to-fuchsia-900/20 border border-white/10 rounded-3xl p-10 flex flex-col md:flex-row items-center gap-10 backdrop-blur-md">
-              <div className="flex-1">
-                <h3 className="text-2xl font-bold text-white mb-4" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif", direction: 'rtl' }}>یوسف اکیڈمی کے ڈیجیٹل شاہکار</h3>
-                <p className="text-gray-400 leading-relaxed mb-6" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif", direction: 'rtl' }}>
-                  جاب الرٹ اے آئی کے علاوہ، یوسف اکیڈمی نے یوٹیوب آٹومیشن کے لیے 'Tube Lens' ایکسٹینشن، اور 'Agentic AI' جیسی جدید کتابیں اور ٹولز متعارف کروائے ہیں جو کہ پاکستان میں ٹیکنالوجی کے فروغ میں اہم کردار ادا کر رہے ہیں۔
-                </p>
-                <button className="px-6 py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 rounded-full text-sm font-bold transition-all text-white">View All Projects →</button>
-              </div>
-              <div className="flex-1 flex justify-center">
-                <div className="w-full max-w-sm h-48 bg-[#0B0813] border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl relative overflow-hidden">
-                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                  <span className="text-violet-500 font-bold text-xl relative z-10">Yousuf Academy</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="contact" className="py-24 relative z-10 border-t border-white/5 bg-[#130F21]/30">
-          <div className="max-w-3xl mx-auto px-6">
-            <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-white">Contact Us</h2>
-            <p className="text-gray-400 text-center mb-12" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>ہم سے رابطہ کرنے کے لیے فارم پُر کریں</p>
-            
-            <form className="bg-[#0B0813]/80 backdrop-blur-xl border border-white/10 p-8 rounded-3xl flex flex-col gap-6 shadow-2xl" onSubmit={(e) => { e.preventDefault(); showPopup('آپ کا پیغام موصول ہو گیا ہے!', 'success'); }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Name</label>
-                  <input type="text" required className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:border-violet-500 text-white outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Email</label>
-                  <input type="email" required className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:border-violet-500 text-white outline-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Message</label>
-                <textarea required rows="4" className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:border-violet-500 text-white outline-none"></textarea>
-              </div>
-              <button type="submit" className="w-full py-4 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-xl transition-all shadow-[0_0_15px_rgba(139,92,246,0.3)]">Send Message</button>
-            </form>
-          </div>
-        </section>
-
-        <footer className="relative z-10 border-t border-white/10 bg-[#0B0813]/90 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-6 py-10 text-center flex flex-col items-center">
-            <div className="p-6 rounded-2xl bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 inline-block">
-              <p className="text-gray-300 text-lg leading-loose" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif", direction: 'rtl' }}>
-                یہ جدید ترین ویب ایپ <span className="text-violet-400 font-bold">مفتی محمد یوسف بلوچ</span> (فاؤنڈر و سی ای او یوسف اکیڈمی اور بانی و مہتمم دارالعلوم علی المرتضیٰؓ) کی زیرِ نگرانی تیار کی جا رہی ہے۔
-              </p>
-            </div>
-            <p className="text-gray-600 mt-8 text-sm">© 2026 Yousuf Academy. All rights reserved.</p>
-          </div>
-        </footer>
 
         {showAuth && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -437,14 +347,6 @@ export default function App() {
                   <div>
                     <label className="block text-sm text-gray-400 mb-1">Max Jobs Per User/Day</label>
                     <input type="number" value={systemSettings.max_jobs_per_user} onChange={(e) => setSystemSettings({...systemSettings, max_jobs_per_user: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Search Range (Hours)</label>
-                    <select value={systemSettings.job_search_hours} onChange={(e) => setSystemSettings({...systemSettings, job_search_hours: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none">
-                      <option value="24">Last 24 Hours</option>
-                      <option value="72">Last 3 Days</option>
-                      <option value="168">Last Week</option>
-                    </select>
                   </div>
                 </div>
                 <button onClick={saveAdminSettings} disabled={loading} className="mt-6 px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-xl transition-all">Save System Settings</button>
@@ -521,6 +423,13 @@ export default function App() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-400 mb-2">Paste CV Text (سی وی کا متن)</label>
                   <textarea rows="4" value={cvText} onChange={(e) => setCvText(e.target.value)} className="w-full p-4 bg-[#0B0813] border border-white/10 rounded-xl focus:border-violet-500 text-white outline-none text-sm" placeholder="Paste your complete CV text here..."></textarea>
+                  
+                  {/* نیا AI Auto Fill بٹن */}
+                  {cvText && (
+                    <button onClick={handleAutoFill} disabled={loading} className="mt-3 w-full py-2.5 bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600/30 border border-fuchsia-500/30 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
+                      <span>🪄</span> AI Auto Fill (نام اور فیلڈ خودکار بھریں)
+                    </button>
+                  )}
                 </div>
                 <button onClick={updateProfile} disabled={loading} className="w-full bg-violet-600 hover:bg-violet-500 text-white py-3.5 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(139,92,246,0.3)]">
                   {loading ? 'Saving...' : 'Save Profile'}
