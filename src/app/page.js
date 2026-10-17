@@ -17,13 +17,14 @@ export default function App() {
   const [jobCategory, setJobCategory] = useState('')
   const [location, setLocation] = useState('')
   const [cvText, setCvText] = useState('')
-  const [cvFile, setCvFile] = useState(null) // فائل کے لیے نیا اسٹیٹ
   const [languagePref, setLanguagePref] = useState('Urdu')
   const [jobMatches, setJobMatches] = useState([])
   const [jobTab, setJobTab] = useState('all')
 
   // ایڈمن اسٹیٹس
   const [showAdminPanel, setShowAdminPanel] = useState(false)
+  const [adminTab, setAdminTab] = useState('settings') // 'settings' or 'users'
+  const [allUsers, setAllUsers] = useState([])
   const [systemSettings, setSystemSettings] = useState({
     emails_enabled: 'true', max_jobs_per_user: '5', job_search_hours: '24'
   })
@@ -104,6 +105,24 @@ export default function App() {
     }
   }
 
+  const fetchAllUsers = async () => {
+    setLoading(true)
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+    if (data) setAllUsers(data)
+    setLoading(false)
+  }
+
+  const toggleUserRole = async (userId, currentRole) => {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin'
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
+    if (!error) {
+      showPopup('یوزر کا درجہ تبدیل کر دیا گیا ہے!', 'success')
+      fetchAllUsers()
+    } else {
+      showPopup(error.message, 'error')
+    }
+  }
+
   const saveAdminSettings = async () => {
     setLoading(true)
     for (const [key, value] of Object.entries(systemSettings)) {
@@ -111,13 +130,6 @@ export default function App() {
     }
     showPopup('ایڈمن سیٹنگز کامیابی سے محفوظ ہو گئیں!', 'success')
     setLoading(false)
-  }
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    setCvFile(file)
-    showPopup(`فائل ${file.name} منتخب ہو گئی۔ سسٹم جلد ہی اسے پروسیس کرے گا۔`, 'success')
   }
 
   const updateProfile = async () => {
@@ -128,6 +140,13 @@ export default function App() {
     if (error) showPopup(error.message, 'error')
     else showPopup('پروفائل محفوظ ہو گئی!', 'success')
     setLoading(false)
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    // فائل اپلوڈ کا کلاؤڈ لاجک یہاں آئے گا
+    showPopup(`فائل ${file.name} منتخب ہو گئی۔ سسٹم اسے پراسیس کرے گا۔`, 'success')
   }
 
   const handleJobAction = async (jobId, action) => {
@@ -208,7 +227,6 @@ export default function App() {
           <button onClick={() => { setShowAuth(true); setAuthMode('signup'); }} className="px-8 py-4 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-full transition-all shadow-[0_0_30px_rgba(139,92,246,0.4)]">Join Free Now →</button>
         </main>
 
-        {/* Features / About Section */}
         <section id="features" className="py-24 relative z-10 border-t border-white/5 bg-gradient-to-b from-[#130F21]/30 to-transparent">
           <div className="max-w-7xl mx-auto px-6">
             <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-white" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>ہمارا سسٹم کیسے <span className="text-violet-400">منفرد</span> ہے؟</h2>
@@ -228,7 +246,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* How it Works Section */}
         <section id="how-it-works" className="py-24 relative z-10 bg-[#130F21]/50 border-t border-white/5">
           <div className="max-w-7xl mx-auto px-6 text-center">
             <h2 className="text-3xl md:text-4xl font-bold mb-16 text-white" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>طریقہ استعمال (How it Works)</h2>
@@ -249,7 +266,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* Projects / News Section */}
         <section id="projects" className="py-24 relative z-10 border-t border-white/5">
           <div className="max-w-7xl mx-auto px-6">
             <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-white" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>دیگر <span className="text-fuchsia-400">پروجیکٹس</span></h2>
@@ -271,7 +287,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* Contact Form Section */}
         <section id="contact" className="py-24 relative z-10 border-t border-white/5 bg-[#130F21]/30">
           <div className="max-w-3xl mx-auto px-6">
             <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-white">Contact Us</h2>
@@ -308,7 +323,6 @@ export default function App() {
           </div>
         </footer>
 
-        {/* Auth Modal */}
         {showAuth && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="w-full max-w-md bg-[#130F21] border border-white/10 rounded-3xl p-8 relative shadow-2xl">
@@ -351,7 +365,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             {userRole === 'admin' && (
-              <button onClick={() => setShowAdminPanel(!showAdminPanel)} className="text-sm font-bold text-violet-400 border border-violet-500/30 bg-violet-500/10 px-4 py-2 rounded-lg hover:bg-violet-500/20 transition-colors">
+              <button onClick={() => { setShowAdminPanel(!showAdminPanel); fetchAllUsers(); }} className="text-sm font-bold text-violet-400 border border-violet-500/30 bg-violet-500/10 px-4 py-2 rounded-lg hover:bg-violet-500/20 transition-colors">
                 Admin Panel
               </button>
             )}
@@ -363,31 +377,73 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-6 py-8 relative z-10">
         
         {showAdminPanel && userRole === 'admin' && (
-          <div className="mb-8 p-6 bg-violet-900/20 border border-violet-500/30 rounded-2xl backdrop-blur-md">
-            <h2 className="text-xl font-bold text-white mb-4">Super Admin Controls</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Email Alerts Status</label>
-                <select value={systemSettings.emails_enabled} onChange={(e) => setSystemSettings({...systemSettings, emails_enabled: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none">
-                  <option value="true">Enabled (Sending)</option>
-                  <option value="false">Disabled (Paused)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Max Jobs Per User/Day</label>
-                <input type="number" value={systemSettings.max_jobs_per_user} onChange={(e) => setSystemSettings({...systemSettings, max_jobs_per_user: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Search Range (Hours)</label>
-                <select value={systemSettings.job_search_hours} onChange={(e) => setSystemSettings({...systemSettings, job_search_hours: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none">
-                  <option value="24">Last 24 Hours</option>
-                  <option value="72">Last 3 Days</option>
-                  <option value="168">Last Week</option>
-                </select>
-              </div>
+          <div className="mb-8 p-6 bg-[#130F21] border border-violet-500/30 rounded-2xl shadow-[0_0_30px_rgba(139,92,246,0.1)]">
+            <div className="flex gap-6 mb-6 border-b border-white/10 pb-4">
+              <button onClick={() => setAdminTab('settings')} className={`font-bold text-lg transition-colors ${adminTab === 'settings' ? 'text-violet-400' : 'text-gray-500 hover:text-gray-300'}`}>System Settings</button>
+              <button onClick={() => { setAdminTab('users'); fetchAllUsers(); }} className={`font-bold text-lg transition-colors ${adminTab === 'users' ? 'text-violet-400' : 'text-gray-500 hover:text-gray-300'}`}>User Management</button>
             </div>
-            <button onClick={saveAdminSettings} disabled={loading} className="mt-4 px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-lg transition-colors">Save System Settings</button>
-            <p className="mt-3 text-xs text-gray-400" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>نوٹ: یوزرز کو مینج کرنے کا آپشن (User Management) اگلے اپڈیٹ میں یہاں شامل کیا جائے گا۔</p>
+
+            {adminTab === 'settings' ? (
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Email Alerts Status</label>
+                    <select value={systemSettings.emails_enabled} onChange={(e) => setSystemSettings({...systemSettings, emails_enabled: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none">
+                      <option value="true">Enabled (Sending)</option>
+                      <option value="false">Disabled (Paused)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Max Jobs Per User/Day</label>
+                    <input type="number" value={systemSettings.max_jobs_per_user} onChange={(e) => setSystemSettings({...systemSettings, max_jobs_per_user: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Search Range (Hours)</label>
+                    <select value={systemSettings.job_search_hours} onChange={(e) => setSystemSettings({...systemSettings, job_search_hours: e.target.value})} className="w-full p-3 bg-[#0B0813] border border-white/10 rounded-xl text-white outline-none">
+                      <option value="24">Last 24 Hours</option>
+                      <option value="72">Last 3 Days</option>
+                      <option value="168">Last Week</option>
+                    </select>
+                  </div>
+                </div>
+                <button onClick={saveAdminSettings} disabled={loading} className="mt-6 px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-xl transition-all">Save System Settings</button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-300">
+                  <thead className="bg-[#0B0813] text-gray-400">
+                    <tr>
+                      <th className="p-4 rounded-tl-xl font-medium">Name</th>
+                      <th className="p-4 font-medium">Email</th>
+                      <th className="p-4 font-medium">Target Job</th>
+                      <th className="p-4 font-medium">Role</th>
+                      <th className="p-4 rounded-tr-xl font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allUsers.map(u => (
+                      <tr key={u.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="p-4 font-medium text-white">{u.full_name || '-'}</td>
+                        <td className="p-4">{u.email || '-'}</td>
+                        <td className="p-4">{u.job_category || '-'}</td>
+                        <td className="p-4">
+                          <span className={`px-3 py-1 rounded-md text-xs font-bold ${u.role === 'admin' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          {u.id !== session.user.id && (
+                            <button onClick={() => toggleUserRole(u.id, u.role)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${u.role === 'admin' ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30'}`}>
+                              {u.role === 'admin' ? 'Demote to User' : 'Make Admin'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -417,13 +473,10 @@ export default function App() {
                     <option value="Arabic">العربية (Arabic)</option>
                   </select>
                 </div>
-                
-                {/* سی وی اپلوڈ کا نیا بٹن یہاں موجود ہے */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-400 mb-2" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>فائل اپلوڈ کریں (Upload CV)</label>
-                  <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileUpload} className="w-full p-2 bg-[#0B0813] border border-white/10 rounded-xl text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-violet-500/20 file:text-violet-400 hover:file:bg-violet-500/30 transition-all cursor-pointer" />
+                  <label className="block text-sm font-semibold text-gray-400 mb-2">Upload CV File (فائل اپلوڈ کریں)</label>
+                  <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileUpload} className="w-full p-2 bg-[#0B0813] border border-white/10 rounded-xl text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-500/20 file:text-violet-400 hover:file:bg-violet-500/30 transition-all cursor-pointer" />
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-400 mb-2">Paste CV Text (سی وی کا متن)</label>
                   <textarea rows="4" value={cvText} onChange={(e) => setCvText(e.target.value)} className="w-full p-4 bg-[#0B0813] border border-white/10 rounded-xl focus:border-violet-500 text-white outline-none text-sm" placeholder="Paste your complete CV text here..."></textarea>
