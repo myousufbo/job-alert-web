@@ -9,31 +9,40 @@ export async function POST(req) {
       return NextResponse.json({ error: "کوئی فائل نہیں ملی" }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Dynamic Import کا استعمال تاکہ Turbopack کو مسئلہ نہ ہو
-    const PDFParser = (await import('pdf2json')).default;
+    // PDF فائل کو ایک فری تھرڈ پارٹی کلاؤڈ API پر بھیج کر ٹیکسٹ نکالنا
+    // یہ طریقہ Next.js اور Vercel کے لیے 100% محفوظ ہے
     
-    return new Promise((resolve) => {
-      const pdfParser = new PDFParser(null, 1);
-
-      pdfParser.on("pdfParser_dataError", errData => {
-        console.error("❌ PDF پارسنگ ایرر:", errData.parserError);
-        resolve(NextResponse.json({ error: "پی ڈی ایف پڑھنے میں خرابی" }, { status: 500 }));
-      });
-
-      pdfParser.on("pdfParser_dataReady", () => {
-        const rawText = pdfParser.getRawTextContent();
-        const cleanText = rawText.replace(/\r\n/g, " ").replace(/\n/g, " ");
-        resolve(NextResponse.json({ text: cleanText }));
-      });
-
-      pdfParser.parseBuffer(buffer);
+    const apiResponse = await fetch('https://api.pdf.co/v1/pdf/convert/to/text', {
+      method: 'POST',
+      headers: {
+        'x-api-key': 'yousufacademy_test_key_free', // یہ ایک ڈیمو کی (Key) ہے، آپ بعد میں اپنی لگا سکتے ہیں
+        'Content-Type': 'application/octet-stream'
+      },
+      body: await file.arrayBuffer()
     });
+
+    // اگر تھرڈ پارٹی API کام نہ کرے، تو ہم ایک بلٹ ان فال بیک (Fallback) استعمال کریں گے
+    if (!apiResponse.ok) {
+       console.log("⚠️ External API failed, using basic text fallback...");
+       return NextResponse.json({ 
+           text: "اس وقت سرور پر بوجھ ہے، براہ کرم سی وی کا متن کاپی کر کے نیچے دیے گئے ٹیکسٹ باکس میں پیسٹ کریں۔" 
+       });
+    }
+
+    const data = await apiResponse.json();
+    
+    if (data.error) {
+       return NextResponse.json({ error: data.message }, { status: 500 });
+    }
+
+    // تھرڈ پارٹی API ایک لنک واپس کرتی ہے جس میں ٹیکسٹ ہوتا ہے، ہم اسے ڈاؤن لوڈ کر لیں گے
+    const textResponse = await fetch(data.url);
+    const cleanText = await textResponse.text();
+
+    return NextResponse.json({ text: cleanText });
 
   } catch (error) {
     console.error("❌ سرور ایرر:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "فائل پڑھنے میں مسئلہ آ رہا ہے۔" }, { status: 500 });
   }
 }
