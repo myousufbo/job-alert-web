@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import pdf from 'pdf-parse';
 
 export async function POST(req) {
   try {
@@ -10,13 +9,18 @@ export async function POST(req) {
       return NextResponse.json({ error: "کوئی فائل نہیں ملی" }, { status: 400 });
     }
 
-    // فائل کو پڑھنے کے لیے بفر (Buffer) میں تبدیل کرنا
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Next.js Turbopack Bypass: ڈائنیمک امپورٹ کا استعمال
+    const pdfModule = await import('pdf-parse');
+    const pdf = pdfModule.default || pdfModule;
+    
     const data = await pdf(buffer);
 
-    // نکالا گیا ٹیکسٹ واپس ویب سائٹ کو بھیجنا
     return NextResponse.json({ text: data.text });
   } catch (error) {
+    console.error("❌ سرور ایرر:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
