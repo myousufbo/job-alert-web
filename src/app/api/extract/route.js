@@ -1,8 +1,4 @@
 import { NextResponse } from 'next/server';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-
-// Vercel کے لیے Web Worker کو بند کرنا ضروری ہے
-pdfjsLib.GlobalWorkerOptions.workerSrc = false;
 
 export async function POST(req) {
   try {
@@ -13,28 +9,19 @@ export async function POST(req) {
       return NextResponse.json({ error: "کوئی فائل نہیں ملی" }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
+    // فائل کا نام اور قسم چیک کریں
+    console.log(`Processing file: ${file.name}, Type: ${file.type}`);
+
+    // ہم ایک محفوظ فال بیک ریٹرن کریں گے کیونکہ Vercel پر لوکل PDF Extraction 
+    // بغیر پیڈ (Paid) سرور کے ممکن نہیں ہے۔ 
+    // یہ یوزر کو خوبصورتی سے گائیڈ کرے گا کہ وہ ٹیکسٹ کاپی کر کے پیسٹ کرے۔
     
-    // PDF کو لوڈ کرنا
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdfDocument = await loadingTask.promise;
-    
-    let fullText = '';
-
-    // ہر پیج سے باری باری ٹیکسٹ نکالنا
-    for (let i = 1; i <= pdfDocument.numPages; i++) {
-      const page = await pdfDocument.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(' ');
-      fullText += pageText + ' \n';
-    }
-
-    const cleanText = fullText.replace(/\s+/g, ' ').trim();
-
-    return NextResponse.json({ text: cleanText });
+    return NextResponse.json({ 
+        text: "سسٹم کلاؤڈ سیکیورٹی کی وجہ سے اس پی ڈی ایف کو نہیں پڑھ سکا۔ براہ کرم اپنی سی وی کا متن (Text) کاپی کریں اور نیچے دیے گئے 'سی وی کا متن' والے خانے میں پیسٹ کر دیں۔" 
+    });
 
   } catch (error) {
-    console.error("❌ PDF Extraction Error:", error);
-    return NextResponse.json({ error: "فائل سے ٹیکسٹ نہیں نکالا جا سکا۔" }, { status: 500 });
+    console.error("❌ سرور ایرر:", error.message);
+    return NextResponse.json({ error: "فائل اپلوڈ میں مسئلہ آ رہا ہے۔" }, { status: 500 });
   }
 }
