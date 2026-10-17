@@ -17,6 +17,7 @@ export default function App() {
   const [jobCategory, setJobCategory] = useState('')
   const [location, setLocation] = useState('')
   const [cvText, setCvText] = useState('')
+  const [cvFile, setCvFile] = useState(null) // فائل کے لیے نیا اسٹیٹ
   const [languagePref, setLanguagePref] = useState('Urdu')
   const [jobMatches, setJobMatches] = useState([])
   const [jobTab, setJobTab] = useState('all')
@@ -112,6 +113,13 @@ export default function App() {
     setLoading(false)
   }
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setCvFile(file)
+    showPopup(`فائل ${file.name} منتخب ہو گئی۔ سسٹم جلد ہی اسے پروسیس کرے گا۔`, 'success')
+  }
+
   const updateProfile = async () => {
     setLoading(true)
     const { error } = await supabase.from('profiles').upsert({
@@ -156,7 +164,7 @@ export default function App() {
   // ==========================================
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#0B0813] text-white font-sans overflow-x-hidden relative selection:bg-violet-500/30 scroll-smooth">
+      <div suppressHydrationWarning className="min-h-screen bg-[#0B0813] text-white font-sans overflow-x-hidden relative selection:bg-violet-500/30 scroll-smooth">
         <Toast />
         <div className="fixed inset-0 z-0 pointer-events-none">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:32px_32px]"></div>
@@ -327,7 +335,7 @@ export default function App() {
   // 2. ڈیش بورڈ پیج
   // ==========================================
   return (
-    <div className="min-h-screen bg-[#0B0813] font-sans text-gray-200 relative selection:bg-violet-500/30">
+    <div suppressHydrationWarning className="min-h-screen bg-[#0B0813] font-sans text-gray-200 relative selection:bg-violet-500/30">
       <Toast />
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:32px_32px]"></div>
@@ -409,6 +417,13 @@ export default function App() {
                     <option value="Arabic">العربية (Arabic)</option>
                   </select>
                 </div>
+                
+                {/* سی وی اپلوڈ کا نیا بٹن یہاں موجود ہے */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-400 mb-2" style={{ fontFamily: "'Noto Nastaliq Urdu Draft', serif" }}>فائل اپلوڈ کریں (Upload CV)</label>
+                  <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileUpload} className="w-full p-2 bg-[#0B0813] border border-white/10 rounded-xl text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-violet-500/20 file:text-violet-400 hover:file:bg-violet-500/30 transition-all cursor-pointer" />
+                </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-400 mb-2">Paste CV Text (سی وی کا متن)</label>
                   <textarea rows="4" value={cvText} onChange={(e) => setCvText(e.target.value)} className="w-full p-4 bg-[#0B0813] border border-white/10 rounded-xl focus:border-violet-500 text-white outline-none text-sm" placeholder="Paste your complete CV text here..."></textarea>
